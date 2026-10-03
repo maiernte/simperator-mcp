@@ -172,6 +172,15 @@ export const TOOLS: Tool[] = [
       required: ['type', 'title', 'description'],
     },
   },
+  {
+    name: 'simperator_get_api_spec',
+    description:
+      'Fetch the dynamic API specification and list of available endpoints for the Simperator platform based on the current caller permissions (admin/owner gets full endpoints including management & cron, standard users get assistant endpoints).',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
 ];
 
 export async function handleToolCall(
@@ -294,6 +303,13 @@ export async function handleToolCall(
               text: `Ticket created successfully! ID: ${created.id || created._id || 'ok'}\n${JSON.stringify(created, null, 2)}`,
             },
           ],
+        };
+      }
+
+      case 'simperator_get_api_spec': {
+        const spec = await client.getApiSpec();
+        return {
+          content: [{ type: 'text', text: JSON.stringify(spec, null, 2) }],
         };
       }
 

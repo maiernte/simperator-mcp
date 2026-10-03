@@ -207,4 +207,9 @@ export class SimperatorClient {
       }),
     });
   }
+
+  // --- Assistant Spec ---
+  async getApiSpec(): Promise<any> {
+    return this.request('/assistant/spec');
+  }
 }
