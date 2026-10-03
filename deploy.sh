@@ -2,9 +2,9 @@
 # 一键发布 simperator-mcp 到 npm：升版本号 → 编译 → 发布 → 推送 git 提交与 tag
 #
 # 用法：
-#   bash deploy.sh          # 补丁版本 0.1.0 → 0.1.1（修 bug、改文案）
-#   bash deploy.sh minor    # 次版本   0.1.0 → 0.2.0（加新工具）
-#   bash deploy.sh major    # 主版本   0.1.0 → 1.0.0（不兼容改动）
+#   pnpm run deploy         # 补丁版本 0.1.0 → 0.1.1（修 bug、改文案）
+#   pnpm run deploy minor # 次版本   0.1.0 → 0.2.0（加新工具）
+#   pnpm run deploy major # 主版本   0.1.0 → 1.0.0（不兼容改动）
 #
 # 前提：改动已经 commit（npm version 要求工作区干净，它会自己提交版本号并打 tag）；本机已 npm login。
 set -e

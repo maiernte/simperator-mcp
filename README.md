@@ -155,8 +155,8 @@ node dist/index.js test
 Commit first, then one command bumps the version, builds, publishes to npm and pushes the commit + tag:
 
 ```bash
-bash deploy.sh          # patch: 0.1.0 → 0.1.1
-bash deploy.sh minor    # minor: 0.1.0 → 0.2.0 (new tools)
+pnpm run deploy         # patch: 0.1.0 → 0.1.1
+pnpm run deploy minor # minor: 0.1.0 → 0.2.0 (new tools)
 ```
 
 ---
