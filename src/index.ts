@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { loadConfig, saveConfig, getConfigFilePath } from './config.js';
 import { SimperatorClient } from './client.js';
+import { VERSION } from './version.js';
 import { runMcpServer } from './server.js';
 
 async function main() {
@@ -9,7 +10,7 @@ async function main() {
 
   if (command === 'help' || command === '--help' || command === '-h') {
     console.log(`
-Simperator MCP Server (v0.1.0)
+Simperator MCP Server (v${VERSION})
 
 Usage:
   simperator-mcp                     Start MCP server in stdio mode (default)

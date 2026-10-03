@@ -31,6 +31,17 @@ Allow your local AI assistant (Claude Desktop, Cursor, Gemini CLI, Cline, etc.) 
 | `simperator_create_ticket` | Support | Open a new support ticket or bug report directly from the AI chat | `type`, `title`, `description`, `to` |
 | `simperator_reply_ticket` | Support | Post a reply or additional comment to an existing ticket | `ticketId`, `text` |
 | `simperator_close_ticket` | Support | Mark a ticket as resolved (verified) or reopen it (open) | `ticketId`, `status`, `resolution` |
+| `simperator_get_dsl_docs` | Screener | Full screener DSL manual — read before writing a script | *(none)* |
+| `simperator_list_screeners` | Screener | List the user's own screeners | `market` |
+| `simperator_save_screener` | Screener | Create / update a screener from a DSL script | `id`, `market`, `name`, `script`, `period`, `groupId`, `description` |
+| `simperator_delete_screener` | Screener | Delete a screener | `id` |
+| `simperator_list_plans` | Screener | List screener plans (range, filters, schedule) | `screenerId` |
+| `simperator_save_plan` | Screener | Create / update a plan (manual, daily or weekly) | `id`, `screenerId`, `market`, `crontab`, `symbols`, `priceLimit`, `volumeLimit`, `symbolType`, `useLive` |
+| `simperator_delete_plan` | Screener | Delete a plan | `id` |
+| `simperator_run_plan` | Screener | Run a plan now and return matched symbols | `planId`, `screenTime` |
+| `simperator_get_plan_results` | Screener | Saved results of a plan | `planId` |
+
+Screener tools require Plus or above. Plus: `debug` group only, max 5 screeners, manual plans, 1 run/min and 20/day. Pro: `debug` / `product` groups, max 30 screeners, max 3 daily/weekly plans, 20 runs/day.
 
 > ⚠️ **Trading Safety Boundary**: AI assistants can create and cancel *draft orders* (`status = 'order'`). Real trade delivery, execution confirmation, and fund deduction **must be manually confirmed by the user in the Simperator web UI (`/portfolio`)**. AI will never automatically fill real orders.
 
@@ -137,6 +148,15 @@ pnpm run build
 # Test CLI
 node dist/index.js status
 node dist/index.js test
+```
+
+### Release
+
+Commit first, then one command bumps the version, builds, publishes to npm and pushes the commit + tag:
+
+```bash
+bash deploy.sh          # patch: 0.1.0 → 0.1.1
+bash deploy.sh minor    # minor: 0.1.0 → 0.2.0 (new tools)
 ```
 
 ---

@@ -386,7 +386,109 @@ export const TOOLS: Tool[] = [
       required: ['id'],
     },
   },
+  ...SCREENER_TOOLS(),
 ];
+
+/**
+ * Screener tools. Limits by subscription tier (enforced by the server):
+ * - lite and below: no access
+ * - plus: groupId "debug" only, max 5 screeners, plans must be manual (crontab "m"), runs 1/min and 20/day
+ * - pro: groupId "debug" or "product", max 30 screeners, max 3 auto plans (crontab "d"/"w"), runs 20/day
+ */
+function SCREENER_TOOLS(): Tool[] {
+  return [
+    {
+      name: 'simperator_get_dsl_docs',
+      description:
+        'Get the full Simperator screener DSL manual (Markdown). ALWAYS read this before writing or editing a screener script; write scripts strictly by this manual.',
+      inputSchema: { type: 'object', properties: {} },
+    },
+    {
+      name: 'simperator_list_screeners',
+      description: "List the user's own screeners (id, name, group, period, DSL script) for a market.",
+      inputSchema: {
+        type: 'object',
+        properties: { market: { type: 'string', enum: ['US', 'CN'], description: 'Market, default US.' } },
+      },
+    },
+    {
+      name: 'simperator_save_screener',
+      description:
+        'Create (omit id) or update (pass id) one of the user\'s screeners. Only fields you pass are changed on update. Translate the user\'s description into a DSL script following simperator_get_dsl_docs. groupId: "debug" (all paid tiers) or "product" (pro only; required for daily auto runs).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Screener ID to update; omit to create.' },
+          market: { type: 'string', enum: ['US', 'CN'], description: 'Market, default US.' },
+          name: { type: 'string', description: 'Screener name.' },
+          script: { type: 'string', description: 'DSL script text.' },
+          period: { type: 'string', enum: ['D', 'W', 'H'], description: 'Bar period: D daily, W weekly, H hourly. Default D.' },
+          groupId: { type: 'string', enum: ['debug', 'product'], description: 'Group, default debug.' },
+          description: { type: 'string', description: 'What this screener is looking for, in plain words.' },
+        },
+      },
+    },
+    {
+      name: 'simperator_delete_screener',
+      description: "Delete one of the user's screeners by ID.",
+      inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+    },
+    {
+      name: 'simperator_list_plans',
+      description: "List the user's screener plans (execution settings: symbol range, price/volume filters, schedule).",
+      inputSchema: {
+        type: 'object',
+        properties: { screenerId: { type: 'string', description: 'Only plans of this screener (optional).' } },
+      },
+    },
+    {
+      name: 'simperator_save_plan',
+      description:
+        'Create (omit id) or update (pass id) a plan that runs a screener. crontab: "m" manual (default), "d" daily, "w" weekly — "d"/"w" auto runs need pro and a "product" screener, max 3 per user. Only fields you pass are changed on update.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Plan ID to update; omit to create.' },
+          screenerId: { type: 'string', description: 'Screener to run (required on create).' },
+          market: { type: 'string', enum: ['US', 'CN'], description: 'Market (required on create).' },
+          crontab: { type: 'string', enum: ['m', 'd', 'w'], description: 'Schedule, default m (manual).' },
+          symbols: { type: 'string', description: '"*" for the whole market (default), or comma-separated symbols.' },
+          priceLimit: { type: 'number', description: 'Minimum price, default 20.' },
+          volumeLimit: { type: 'number', description: 'Minimum volume, default 5000000.' },
+          symbolType: { type: 'string', enum: ['All', 'Equity', 'ETF', 'Index'], description: 'Security type, default All.' },
+          useLive: { type: 'boolean', description: "Include today's unfinished bar during market hours." },
+        },
+      },
+    },
+    {
+      name: 'simperator_delete_plan',
+      description: "Delete one of the user's plans by ID.",
+      inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+    },
+    {
+      name: 'simperator_run_plan',
+      description:
+        'Run a plan now and return the matched symbols. A full-market scan can take a few minutes. Rate limited (plus: 1/min, 20/day; pro: 20/day; one run at a time).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          planId: { type: 'string' },
+          screenTime: { type: 'string', description: 'Screen as of this date (YYYY-MM-DD); omit for the latest trading day.' },
+        },
+        required: ['planId'],
+      },
+    },
+    {
+      name: 'simperator_get_plan_results',
+      description: 'Get saved screening results of a plan (one record per run date).',
+      inputSchema: { type: 'object', properties: { planId: { type: 'string' } }, required: ['planId'] },
+    },
+  ];
+}
+
+const json = (title: string, data: unknown) => ({
+  content: [{ type: 'text' as const, text: `${title}\n${JSON.stringify(data, null, 2)}` }],
+});
 
 export async function handleToolCall(
   client: SimperatorClient,
@@ -650,6 +752,62 @@ export async function handleToolCall(
           ],
         };
       }
+
+      case 'simperator_get_dsl_docs': {
+        const docs = await client.getDslDocs();
+        return { content: [{ type: 'text', text: docs.markdown }] };
+      }
+
+      case 'simperator_list_screeners':
+        return json('Screeners:', await client.listScreeners(args.market || 'US'));
+
+      case 'simperator_save_screener': {
+        const r = await client.saveScreener({
+          id: args.id,
+          market: args.market || 'US',
+          name: args.name,
+          script: args.script,
+          period: args.period,
+          groupId: args.groupId,
+          description: args.description,
+        });
+        return json(`Screener saved (ID: ${r.id}).`, r);
+      }
+
+      case 'simperator_delete_screener':
+        return json(`Screener ${args.id} deleted.`, await client.deleteScreener(String(args.id)));
+
+      case 'simperator_list_plans':
+        return json('Plans:', await client.listPlans(args.screenerId));
+
+      case 'simperator_save_plan': {
+        const r = await client.savePlan({
+          id: args.id,
+          screenerId: args.screenerId,
+          market: args.market,
+          crontab: args.crontab,
+          symbols: args.symbols,
+          priceLimit: args.priceLimit,
+          volumeLimit: args.volumeLimit,
+          symbolType: args.symbolType,
+          useLive: args.useLive,
+        });
+        return json(`Plan saved (ID: ${r.id}).`, r);
+      }
+
+      case 'simperator_delete_plan':
+        return json(`Plan ${args.id} deleted.`, await client.deletePlan(String(args.id)));
+
+      case 'simperator_run_plan': {
+        const r = await client.runPlan(String(args.planId), args.screenTime);
+        const head = r.errors.length
+          ? `Run finished with errors: ${r.errors.join('; ')}`
+          : r.finished?.message || `Run finished, ${r.matched.length} matched.`;
+        return json(head, r);
+      }
+
+      case 'simperator_get_plan_results':
+        return json('Plan results:', await client.getPlanResults(String(args.planId)));
 
       default:
         throw new Error(`Unknown tool: ${name}`);

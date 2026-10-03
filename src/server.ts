@@ -7,13 +7,14 @@ import {
   ErrorCode,
 } from '@modelcontextprotocol/sdk/types.js';
 import { SimperatorClient } from './client.js';
+import { VERSION } from './version.js';
 import { TOOLS, handleToolCall } from './tools/index.js';
 
 export async function runMcpServer(client: SimperatorClient): Promise<void> {
   const server = new Server(
     {
       name: 'simperator-mcp',
-      version: '0.1.0',
+      version: VERSION,
     },
     {
       capabilities: {

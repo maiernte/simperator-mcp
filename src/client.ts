@@ -349,6 +349,135 @@ export class SimperatorClient {
     });
   }
 
+  // --- Screeners (plus: debug group only, max 5, manual plans; pro: debug/product, max 30, 3 auto plans) ---
+  async getDslDocs(): Promise<{ markdown: string }> {
+    return this.request('/screener/dsl-docs');
+  }
+
+  async listScreeners(market: string): Promise<any[]> {
+    return this.request(`/screener/screeners?market=${encodeURIComponent(market)}`);
+  }
+
+  /** Server replaces every field on update, so merge onto the stored screener first. */
+  async saveScreener(input: {
+    id?: string;
+    market: string;
+    name?: string;
+    script?: string;
+    period?: string;
+    groupId?: string;
+    description?: string;
+  }): Promise<any> {
+    const list = await this.listScreeners(input.market);
+    const defined = Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined));
+    let body: any;
+    if (input.id) {
+      const current = list.find((s) => s.id === input.id);
+      if (!current) throw new Error(`Screener ${input.id} not found in market ${input.market}`);
+      body = { ...current, ...defined };
+    } else {
+      // index > 0 is required for the daily auto run; append after the user's last screener
+      const index = Math.max(0, ...list.map((s) => s.index ?? 0)) + 1;
+      body = { version: 1, rating: 0, period: 'D', groupId: 'debug', runners: [], index, name: 'New screener', script: '', ...defined };
+    }
+    return this.request('/screener/screeners', { method: 'POST', body: JSON.stringify(body) });
+  }
+
+  async deleteScreener(id: string): Promise<any> {
+    return this.request(`/screener/screeners/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  }
+
+  async listPlans(screenerId?: string): Promise<any[]> {
+    return this.request(`/screener/plans${screenerId ? `?screenerId=${encodeURIComponent(screenerId)}` : ''}`);
+  }
+
+  /** Same merge-on-update rule as saveScreener. */
+  async savePlan(input: {
+    id?: string;
+    screenerId?: string;
+    market?: string;
+    crontab?: string;
+    symbols?: string;
+    priceLimit?: number;
+    volumeLimit?: number;
+    symbolType?: string;
+    useLive?: boolean;
+  }): Promise<any> {
+    const plans = await this.listPlans();
+    const defined = Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined));
+    let body: any;
+    if (input.id) {
+      const current = plans.find((p) => p.id === input.id);
+      if (!current) throw new Error(`Plan ${input.id} not found`);
+      body = { ...current, ...defined };
+    } else {
+      if (!input.screenerId || !input.market) throw new Error('screenerId and market are required for a new plan');
+      // index > 0: results are saved and the plan is eligible for the daily auto run
+      const index = Math.max(0, ...plans.map((p) => p.index ?? 0)) + 1;
+      body = { index, crontab: 'm', symbols: '*', volumeLimit: 5_000_000, priceLimit: 20, symbolType: 'All', ...defined };
+    }
+    return this.request('/screener/plans', { method: 'POST', body: JSON.stringify(body) });
+  }
+
+  async deletePlan(id: string): Promise<any> {
+    return this.request(`/screener/plans/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  }
+
+  /**
+   * Run a plan through the server's SSE endpoint and collect the outcome.
+   * Progress events keep the connection alive during long full-market scans.
+   */
+  async runPlan(planId: string, screenTime?: string): Promise<{
+    matched: { symbol: string; date?: string }[];
+    finished?: any;
+    errors: string[];
+    info: string[];
+  }> {
+    const token = await this.ensureAuth();
+    const qs = new URLSearchParams({ planId });
+    if (screenTime) qs.set('screenTime', screenTime);
+    const url = `${this.config.apiUrl}/screener/execute?${qs}`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'text/event-stream' } });
+    if (!res.ok || !res.body) {
+      let message = `${res.status} ${res.statusText}`;
+      try {
+        const errJson: any = await res.json();
+        message = errJson.message || JSON.stringify(errJson);
+      } catch {
+        // keep status text
+      }
+      throw new Error(`API Error [${res.status}] ${url}: ${message}`);
+    }
+
+    const out = { matched: [] as { symbol: string; date?: string }[], finished: undefined as any, errors: [] as string[], info: [] as string[] };
+    const decoder = new TextDecoder();
+    let buffer = '';
+    for await (const chunk of res.body as any as AsyncIterable<Uint8Array>) {
+      buffer += decoder.decode(chunk, { stream: true });
+      let nl: number;
+      while ((nl = buffer.indexOf('\n')) >= 0) {
+        const line = buffer.slice(0, nl).trim();
+        buffer = buffer.slice(nl + 1);
+        if (!line.startsWith('data:')) continue;
+        let msg: any;
+        try {
+          msg = JSON.parse(line.slice(5).trim());
+        } catch {
+          continue;
+        }
+        if (msg.type === 'match') out.matched.push({ symbol: msg.symbol, date: msg.date });
+        else if (msg.type === 'finished') out.finished = msg;
+        else if (msg.type === 'error') out.errors.push(msg.message);
+        else if (msg.type === 'info' && msg.message) out.info.push(msg.message);
+      }
+    }
+    return out;
+  }
+
+  async getPlanResults(planId: string): Promise<any> {
+    return this.request(`/screener/results/by-plan/${encodeURIComponent(planId)}`);
+  }
+
   // --- Assistant Spec & QA Docs ---
   async getApiSpec(): Promise<any> {
     return this.request('/assistant/spec');
