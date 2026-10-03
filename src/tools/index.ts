@@ -181,6 +181,211 @@ export const TOOLS: Tool[] = [
       properties: {},
     },
   },
+  {
+    name: 'simperator_get_qa_docs',
+    description:
+      'Fetch official Simperator platform user manuals, FAQs, subscription rules, notification setup, and trading operation guides. Allows the client AI to answer user platform questions directly with zero server token cost.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        topic: {
+          type: 'string',
+          description: 'Search topic or keyword (e.g. telegram, 订阅, 规则, 工单, 自选, 自带AI).',
+        },
+        id: {
+          type: 'string',
+          description: 'Optional document ID (01, 02, 03, 04, 05, 06).',
+        },
+      },
+    },
+  },
+  {
+    name: 'simperator_reply_ticket',
+    description: 'Post a reply, comment, or additional context to an existing customer support ticket.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ticketId: {
+          type: 'string',
+          description: 'Target ticket ID.',
+        },
+        text: {
+          type: 'string',
+          description: 'Reply text / message content.',
+        },
+      },
+      required: ['ticketId', 'text'],
+    },
+  },
+  {
+    name: 'simperator_close_ticket',
+    description: 'Mark a support ticket as resolved (verified) or reopen it (open).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ticketId: {
+          type: 'string',
+          description: 'Target ticket ID.',
+        },
+        status: {
+          type: 'string',
+          enum: ['verified', 'open'],
+          description: 'Target status: verified (resolved/close) or open (reopen). Default: verified.',
+        },
+        resolution: {
+          type: 'string',
+          description: 'Optional closing note or resolution description.',
+        },
+      },
+      required: ['ticketId'],
+    },
+  },
+  {
+    name: 'simperator_add_to_watchlist',
+    description: 'Add a stock symbol to a specific watchlist group for the user.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        watchlistId: {
+          type: 'string',
+          description: 'Target watchlist ID (use simperator_list_watchlists to find IDs).',
+        },
+        symbol: {
+          type: 'string',
+          description: 'Stock symbol to add (e.g. AAPL, NVDA).',
+        },
+        market: {
+          type: 'string',
+          enum: ['US', 'CN'],
+          description: 'Market identifier (default: US).',
+        },
+      },
+      required: ['watchlistId', 'symbol'],
+    },
+  },
+  {
+    name: 'simperator_remove_from_watchlist',
+    description: 'Remove a stock symbol from a specific watchlist group for the user.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        watchlistId: {
+          type: 'string',
+          description: 'Target watchlist ID.',
+        },
+        symbol: {
+          type: 'string',
+          description: 'Stock symbol to remove.',
+        },
+        market: {
+          type: 'string',
+          enum: ['US', 'CN'],
+          description: 'Market identifier (default: US).',
+        },
+      },
+      required: ['watchlistId', 'symbol'],
+    },
+  },
+  {
+    name: 'simperator_create_draft_order',
+    description:
+      'Create an unfilled draft trade order (status="order") in the user\'s portfolio. IMPORTANT SAFETY BOUNDARY: This only creates a pending draft order. The user must manually review and click "交割" (Deliver/Fill) in the web UI (/portfolio) to confirm actual execution and fund deduction.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        portfolioId: {
+          type: 'string',
+          description: 'Target portfolio ID (use simperator_get_portfolio to find IDs).',
+        },
+        symbol: {
+          type: 'string',
+          description: 'Stock symbol (e.g. AAPL).',
+        },
+        action: {
+          type: 'string',
+          enum: ['buy', 'sell'],
+          description: 'Trade action: buy or sell.',
+        },
+        posType: {
+          type: 'string',
+          enum: ['open', 'add', 'cut', 'close'],
+          description: 'Position type: open (new position), add (add to position), cut (reduce position), close (exit position).',
+        },
+        price: {
+          type: 'number',
+          description: 'Planned execution price / limit reference price.',
+        },
+        amount: {
+          type: 'number',
+          description: 'Planned number of shares.',
+        },
+        stopPrice: {
+          type: 'number',
+          description: 'Planned stop-loss price.',
+        },
+        strategy: {
+          type: 'string',
+          description: 'Strategy tag (e.g. 系统A, 系统B, 黄金回撤).',
+        },
+        note: {
+          type: 'string',
+          description: 'Trade planning note / rationale.',
+        },
+      },
+      required: ['portfolioId', 'symbol', 'action', 'posType', 'price', 'amount'],
+    },
+  },
+  {
+    name: 'simperator_delete_draft_order',
+    description: 'Cancel or delete an unfilled draft trade order from the portfolio.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        actionId: {
+          type: 'string',
+          description: 'Trade action / draft order ID to delete.',
+        },
+      },
+      required: ['actionId'],
+    },
+  },
+  {
+    name: 'simperator_save_watch_note',
+    description: 'Save or update personal market observation notes / technical annotations for a symbol.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        symbol: {
+          type: 'string',
+          description: 'Stock symbol (e.g. AAPL).',
+        },
+        market: {
+          type: 'string',
+          enum: ['US', 'CN'],
+          description: 'Market identifier (default: US).',
+        },
+        content: {
+          type: 'string',
+          description: 'Note text content.',
+        },
+      },
+      required: ['symbol', 'content'],
+    },
+  },
+  {
+    name: 'simperator_delete_watch_note',
+    description: 'Delete a personal market observation note by ID.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: {
+          type: 'string',
+          description: 'Watch note ID to delete.',
+        },
+      },
+      required: ['id'],
+    },
+  },
 ];
 
 export async function handleToolCall(
@@ -310,6 +515,139 @@ export async function handleToolCall(
         const spec = await client.getApiSpec();
         return {
           content: [{ type: 'text', text: JSON.stringify(spec, null, 2) }],
+        };
+      }
+
+      case 'simperator_get_qa_docs': {
+        const docs = await client.getKnowledgeQa({
+          topic: args.topic ? String(args.topic) : undefined,
+          id: args.id ? String(args.id) : undefined,
+        });
+        return {
+          content: [{ type: 'text', text: JSON.stringify(docs, null, 2) }],
+        };
+      }
+
+      case 'simperator_reply_ticket': {
+        const result = await client.replyTicket(String(args.ticketId), String(args.text));
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Reply posted successfully to ticket ${args.ticketId}!\n${JSON.stringify(result, null, 2)}`,
+            },
+          ],
+        };
+      }
+
+      case 'simperator_close_ticket': {
+        const targetStatus = args.status === 'open' ? 'open' : 'verified';
+        const result = await client.setTicketStatus(
+          String(args.ticketId),
+          targetStatus,
+          args.resolution ? String(args.resolution) : undefined
+        );
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Ticket ${args.ticketId} status updated to "${targetStatus}"!\n${JSON.stringify(result, null, 2)}`,
+            },
+          ],
+        };
+      }
+
+      case 'simperator_add_to_watchlist': {
+        const result = await client.addToWatchlist(
+          String(args.watchlistId),
+          String(args.symbol),
+          (args.market as any) || 'US'
+        );
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Symbol ${args.symbol} added to watchlist ${args.watchlistId}!\n${JSON.stringify(result, null, 2)}`,
+            },
+          ],
+        };
+      }
+
+      case 'simperator_remove_from_watchlist': {
+        const result = await client.removeFromWatchlist(
+          String(args.watchlistId),
+          String(args.symbol),
+          (args.market as any) || 'US'
+        );
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Symbol ${args.symbol} removed from watchlist ${args.watchlistId}!\n${JSON.stringify(result, null, 2)}`,
+            },
+          ],
+        };
+      }
+
+      case 'simperator_create_draft_order': {
+        const order = await client.createDraftOrder({
+          portfolioId: String(args.portfolioId),
+          symbol: String(args.symbol),
+          action: args.action,
+          posType: args.posType,
+          price: Number(args.price),
+          amount: Number(args.amount),
+          stopPrice: args.stopPrice !== undefined ? Number(args.stopPrice) : undefined,
+          strategy: args.strategy ? String(args.strategy) : undefined,
+          note: args.note ? String(args.note) : undefined,
+        });
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Draft order created successfully! (Order ID: ${order.id})\nStatus: order (pending manual delivery by user in web UI /portfolio)\nDetails:\n${JSON.stringify(order, null, 2)}`,
+            },
+          ],
+        };
+      }
+
+      case 'simperator_delete_draft_order': {
+        const result = await client.deleteDraftOrder(String(args.actionId));
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Draft order ${args.actionId} deleted/canceled successfully!\n${JSON.stringify(result, null, 2)}`,
+            },
+          ],
+        };
+      }
+
+      case 'simperator_save_watch_note': {
+        const result = await client.saveWatchNote({
+          market: (args.market as any) || 'US',
+          symbol: String(args.symbol),
+          content: String(args.content),
+        });
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Watch note saved successfully for ${args.symbol}!\n${JSON.stringify(result, null, 2)}`,
+            },
+          ],
+        };
+      }
+
+      case 'simperator_delete_watch_note': {
+        const result = await client.deleteWatchNote(String(args.id));
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Watch note ${args.id} deleted successfully!\n${JSON.stringify(result, null, 2)}`,
+            },
+          ],
         };
       }
 

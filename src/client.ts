@@ -159,22 +159,145 @@ export class SimperatorClient {
   }
 
   // --- Watchlists ---
-  async getWatchlists(): Promise<any> {
-    return this.request('/trade/watchlists');
+  async getWatchlists(market = 'US'): Promise<any> {
+    return this.request(`/trade/watchlists?market=${encodeURIComponent(market)}`);
   }
 
-  // --- Portfolio & Trading ---
-  async getPortfolios(): Promise<any> {
-    return this.request('/portfolio');
+  async createWatchlist(data: {
+    title: string;
+    market: string;
+    type?: string;
+    description?: string;
+    symbols?: string;
+  }): Promise<any> {
+    return this.request('/trade/watchlists', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateWatchlist(
+    id: string,
+    data: {
+      title?: string;
+      type?: string;
+      description?: string;
+      symbols?: string;
+      color?: string;
+      index?: number;
+    }
+  ): Promise<any> {
+    return this.request(`/trade/watchlists/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteWatchlist(id: string): Promise<any> {
+    return this.request(`/trade/watchlists/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async addToWatchlist(watchlistId: string, symbol: string, market = 'US'): Promise<any> {
+    const sym = symbol.toUpperCase().trim();
+    const lists = await this.getWatchlists(market);
+    const target = [...(lists.watchlists || []), ...(lists.sectors || [])].find(
+      (w: any) => w.id === watchlistId
+    );
+    if (!target) {
+      throw new Error(`Watchlist not found with ID: ${watchlistId}`);
+    }
+    const currentSymbols = target.symbols
+      ? target.symbols.split(',').map((s: string) => s.trim().toUpperCase()).filter(Boolean)
+      : [];
+    if (!currentSymbols.includes(sym)) {
+      currentSymbols.push(sym);
+    }
+    return this.updateWatchlist(watchlistId, { symbols: currentSymbols.join(',') });
+  }
+
+  async removeFromWatchlist(watchlistId: string, symbol: string, market = 'US'): Promise<any> {
+    const sym = symbol.toUpperCase().trim();
+    const lists = await this.getWatchlists(market);
+    const target = [...(lists.watchlists || []), ...(lists.sectors || [])].find(
+      (w: any) => w.id === watchlistId
+    );
+    if (!target) {
+      throw new Error(`Watchlist not found with ID: ${watchlistId}`);
+    }
+    const currentSymbols = target.symbols
+      ? target.symbols.split(',').map((s: string) => s.trim().toUpperCase()).filter(Boolean)
+      : [];
+    const filtered = currentSymbols.filter((s: string) => s !== sym);
+    return this.updateWatchlist(watchlistId, { symbols: filtered.join(',') });
+  }
+
+  // --- Portfolio & Trading (Draft Orders) ---
+  async getPortfolios(market?: string): Promise<any> {
+    return this.request(`/portfolio${market ? `?market=${encodeURIComponent(market)}` : ''}`);
   }
 
   async getPortfolioActions(portfolioId: string): Promise<any> {
     return this.request(`/portfolio/${portfolioId}/actions`);
   }
 
+  /**
+   * 创建未交割草稿订单（status 强置为 'order'，严守交割红线）
+   */
+  async createDraftOrder(payload: {
+    portfolioId: string;
+    symbol: string;
+    action: 'buy' | 'sell';
+    posType: 'open' | 'add' | 'cut' | 'close';
+    price: number;
+    amount: number;
+    stopPrice?: number;
+    strategy?: string;
+    note?: string;
+  }): Promise<any> {
+    return this.request('/portfolio/actions', {
+      method: 'POST',
+      body: JSON.stringify({
+        ...payload,
+        symbol: payload.symbol.toUpperCase().trim(),
+        status: 'order', // 始终是未交割草稿订单
+      }),
+    });
+  }
+
+  async deleteDraftOrder(actionId: string): Promise<any> {
+    return this.request(`/portfolio/actions/${encodeURIComponent(actionId)}`, {
+      method: 'DELETE',
+    });
+  }
+
   // --- Watch Notes ---
-  async getWatchNotes(): Promise<any> {
-    return this.request('/watch-note');
+  async getWatchNotes(market = 'US', symbol?: string): Promise<any> {
+    const params = new URLSearchParams({ market });
+    if (symbol) params.set('symbol', symbol.toUpperCase().trim());
+    return this.request(`/watch-note?${params.toString()}`);
+  }
+
+  async saveWatchNote(payload: {
+    market: string;
+    symbol: string;
+    content?: string;
+    [key: string]: any;
+  }): Promise<any> {
+    return this.request('/watch-note', {
+      method: 'POST',
+      body: JSON.stringify({
+        ...payload,
+        symbol: payload.symbol.toUpperCase().trim(),
+      }),
+    });
+  }
+
+  async deleteWatchNote(id: string): Promise<any> {
+    return this.request(`/watch-note/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
   }
 
   // --- Knowledge Points ---
@@ -208,8 +331,34 @@ export class SimperatorClient {
     });
   }
 
-  // --- Assistant Spec ---
+  async replyTicket(ticketId: string, text: string): Promise<any> {
+    return this.request(`/support/tickets/${encodeURIComponent(ticketId)}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    });
+  }
+
+  async setTicketStatus(
+    ticketId: string,
+    status: 'verified' | 'open',
+    resolution?: string
+  ): Promise<any> {
+    return this.request(`/support/tickets/${encodeURIComponent(ticketId)}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, resolution }),
+    });
+  }
+
+  // --- Assistant Spec & QA Docs ---
   async getApiSpec(): Promise<any> {
     return this.request('/assistant/spec');
+  }
+
+  async getKnowledgeQa(query?: { topic?: string; id?: string }): Promise<any> {
+    const params = new URLSearchParams();
+    if (query?.topic) params.set('topic', query.topic);
+    if (query?.id) params.set('id', query.id);
+    const qs = params.toString();
+    return this.request(`/assistant/qa${qs ? `?${qs}` : ''}`);
   }
 }
