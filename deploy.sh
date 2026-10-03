@@ -25,11 +25,11 @@ echo "======= 升版本号 ($BUMP) ======="
 npm version "$BUMP" -m "release: v%s"
 VERSION=$(node -p "require('./package.json').version")
 
-echo "======= 编译并发布 v$VERSION ======="
+echo "======= 编译并发布 v${VERSION} ======="
 # prepublishOnly 会先跑 npm run build
 npm publish --access public
 
 echo "======= 推送 git ======="
 git push && git push --tags
 
-echo "✅ 已发布 simperator-mcp@$VERSION（用户的 npx simperator-mcp@latest 下次启动即生效）"
+echo "✅ 已发布 simperator-mcp@${VERSION}（用户的 npx simperator-mcp@latest 下次启动即生效）"
