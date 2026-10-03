@@ -77,7 +77,7 @@ Add `simperator` to the `mcpServers` section:
   "mcpServers": {
     "simperator": {
       "command": "npx",
-      "args": ["-y", "simperator-mcp"],
+      "args": ["-y", "simperator-mcp@latest"],
       "env": {
         "SIMPERATOR_TOKEN": "<YOUR_TOKEN_HERE>"
       }
@@ -90,7 +90,7 @@ Add `simperator` to the `mcpServers` section:
 
 Add a new MCP server in settings:
 - **Type**: `command`
-- **Command**: `npx -y simperator-mcp`
+- **Command**: `npx -y simperator-mcp@latest`
 - **Environment Variables**:
   - `SIMPERATOR_TOKEN`: `<YOUR_TOKEN_HERE>`
 
