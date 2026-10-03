@@ -1,0 +1,38 @@
+{
+  "name": "simperator-mcp",
+  "version": "0.1.0",
+  "description": "Simperator Official Model Context Protocol (MCP) Server",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "simperator-mcp": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc -w",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "simperator",
+    "trading",
+    "stocks",
+    "ai-assistant"
+  ],
+  "author": "Yongfeng Mai",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.6.1",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.9",
+    "typescript": "^5.7.3"
+  }
+}
