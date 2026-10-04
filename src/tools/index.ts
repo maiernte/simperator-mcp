@@ -184,17 +184,17 @@ export const TOOLS: Tool[] = [
   {
     name: 'simperator_get_qa_docs',
     description:
-      'Fetch official Simperator platform user manuals, FAQs, subscription rules, notification setup, and trading operation guides. Allows the client AI to answer user platform questions directly with zero server token cost.',
+      'Simperator platform manual (subscription tiers & prices, notifications, tickets, MCP setup, building strategies & single-stock backtest, etc.), in three levels so you never load everything at once: no args → table of contents (doc id + section headings, no body); topic → only the matching sections; id → one full document. Search first, fetch a full document only when the sections are not enough.',
     inputSchema: {
       type: 'object',
       properties: {
         topic: {
           type: 'string',
-          description: 'Search topic or keyword (e.g. telegram, 订阅, 规则, 工单, 自选, 自带AI).',
+          description: 'Keywords in Chinese, space-separated (e.g. "订阅 到期", "telegram", "工单", "回测").',
         },
         id: {
           type: 'string',
-          description: 'Optional document ID (01, 02, 03, 04, 05, 06).',
+          description: 'Document id from the table of contents, e.g. 01 or 10.',
         },
       },
     },
@@ -402,6 +402,21 @@ function SCREENER_TOOLS(): Tool[] {
       description:
         'Get the full Simperator screener DSL manual (Markdown). ALWAYS read this before writing or editing a screener script; write scripts strictly by this manual.',
       inputSchema: { type: 'object', properties: {} },
+    },
+    {
+      name: 'simperator_backtest',
+      description:
+        "Single-stock backtest: evaluate a DSL script (daily bars) on every past trading day of ONE symbol and return each signal's date, close, and the % change 5/10/20 trading days later, plus win rate and average change. Use it to validate a rule on 2-5 stocks the user knows BEFORE saving it as a market-wide screener (workflow: read simperator_get_dsl_docs → write script → backtest → adjust → simperator_save_screener → plan → run). Consecutive days of the same signal count once. A DSL error returns HTTP 400 with the gateway message — fix the script from it. Small samples (a few signals) are not conclusive; say so. Plus: 2/min, 100/day; Pro: 2/min, unlimited per day. A 250-day run takes ~20s.",
+      inputSchema: {
+        type: 'object',
+        properties: {
+          symbol: { type: 'string', description: 'Ticker, e.g. NVDA or 600519.' },
+          script: { type: 'string', description: 'DSL script text (daily period).' },
+          market: { type: 'string', enum: ['US', 'CN'], description: 'Market, default US.' },
+          days: { type: 'number', description: 'Trading days to look back, 20-750, default 250.' },
+        },
+        required: ['symbol', 'script'],
+      },
     },
     {
       name: 'simperator_list_screeners',
@@ -757,6 +772,17 @@ export async function handleToolCall(
         const docs = await client.getDslDocs();
         return { content: [{ type: 'text', text: docs.markdown }] };
       }
+
+      case 'simperator_backtest':
+        return json(
+          'Backtest:',
+          await client.backtest({
+            symbol: String(args.symbol),
+            script: String(args.script),
+            market: args.market ? String(args.market) : undefined,
+            days: args.days !== undefined ? Number(args.days) : undefined,
+          })
+        );
 
       case 'simperator_list_screeners':
         return json('Screeners:', await client.listScreeners(args.market || 'US'));

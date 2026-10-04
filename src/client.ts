@@ -354,6 +354,11 @@ export class SimperatorClient {
     return this.request('/screener/dsl-docs');
   }
 
+  /** Single-stock backtest (plus+): evaluate a DSL script on every past trading day of one symbol. */
+  async backtest(params: { symbol: string; script: string; market?: string; days?: number }): Promise<any> {
+    return this.request('/screener/backtest', { method: 'POST', body: JSON.stringify(params) });
+  }
+
   async listScreeners(market: string): Promise<any[]> {
     return this.request(`/screener/screeners?market=${encodeURIComponent(market)}`);
   }

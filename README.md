@@ -11,7 +11,7 @@ Allow your local AI assistant (Claude Desktop, Cursor, Gemini CLI, Cline, etc.) 
 | Tool Name | Category | Description | Key Arguments |
 |---|---|---|---|
 | `simperator_get_api_spec` | Spec | Fetch dynamic API spec & available endpoints based on caller permissions | *(none)* |
-| `simperator_get_qa_docs` | Docs/QA | Retrieve platform guides, FAQs, rules & manuals (0 server Token cost) | `topic`, `id` |
+| `simperator_get_qa_docs` | Docs/QA | Platform manual: no args = table of contents, `topic` = matching sections, `id` = full document | `topic`, `id` |
 | `simperator_get_stock_quote` | Market | Stock basic info, profile, exchange, and current OHLCV price action | `symbol`, `market` |
 | `simperator_get_earnings` | Market | Upcoming earnings date and historical quarterly earnings records | `symbol`, `market` |
 | `simperator_get_daily_report` | AI Review | Latest AI daily market review reports and macro setup assessments | `limit` |
@@ -32,6 +32,7 @@ Allow your local AI assistant (Claude Desktop, Cursor, Gemini CLI, Cline, etc.) 
 | `simperator_reply_ticket` | Support | Post a reply or additional comment to an existing ticket | `ticketId`, `text` |
 | `simperator_close_ticket` | Support | Mark a ticket as resolved (verified) or reopen it (open) | `ticketId`, `status`, `resolution` |
 | `simperator_get_dsl_docs` | Screener | Full screener DSL manual — read before writing a script | *(none)* |
+| `simperator_backtest` | Screener | Single-stock backtest: signals of a DSL script on one symbol's history + 5/10/20-day returns | `symbol`, `script`, `market`, `days` |
 | `simperator_list_screeners` | Screener | List the user's own screeners | `market` |
 | `simperator_save_screener` | Screener | Create / update a screener from a DSL script | `id`, `market`, `name`, `script`, `period`, `groupId`, `description` |
 | `simperator_delete_screener` | Screener | Delete a screener | `id` |
@@ -41,7 +42,7 @@ Allow your local AI assistant (Claude Desktop, Cursor, Gemini CLI, Cline, etc.) 
 | `simperator_run_plan` | Screener | Run a plan now and return matched symbols | `planId`, `screenTime` |
 | `simperator_get_plan_results` | Screener | Saved results of a plan | `planId` |
 
-Screener tools require Plus or above. Plus: `debug` group only, max 5 screeners, manual plans, 1 run/min and 20/day. Pro: `debug` / `product` groups, max 30 screeners, max 3 daily/weekly plans, 20 runs/day.
+Screener tools require Plus or above. Plus: `debug` group only, max 5 screeners, manual plans, 1 run/min and 20/day; backtest 2/min and 100/day. Pro: `debug` / `product` groups, max 30 screeners, max 3 daily/weekly plans, 20 runs/day; backtest 2/min, unlimited per day.
 
 > ⚠️ **Trading Safety Boundary**: AI assistants can create and cancel *draft orders* (`status = 'order'`). Real trade delivery, execution confirmation, and fund deduction **must be manually confirmed by the user in the Simperator web UI (`/portfolio`)**. AI will never automatically fill real orders.
 
