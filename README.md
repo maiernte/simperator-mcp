@@ -53,6 +53,26 @@ Allow your local AI assistant (Claude Desktop, Cursor, Gemini CLI, Cline, etc.) 
 | `simperator_delete_plan` | Screener | Delete a plan | `id` |
 | `simperator_run_plan` | Screener | Run a plan now and return matched symbols | `planId`, `screenTime` |
 | `simperator_get_plan_results` | Screener | Saved results of a plan | `planId` |
+| `simperator_get_bars` | Review | OHLCV bars as compact rows (daily / weekly / monthly) | `symbol`, `market`, `resolution`, `count` |
+| `simperator_get_guide` | Review | The user's own active trading guide | `market` |
+| `simperator_save_guide` | Review | Save a new guide version and activate it | `version`, `content`, `comment` |
+| `simperator_save_daily_report` | Review | Create / overwrite today's daily review report | `portfolioId`, `reportDate`, `reportContent`, … |
+| `simperator_list_active_stock_reports` | Review | Stocks under management (active stock reports) | `market` |
+| `simperator_save_stock_report` | Review | Create a stock report (archives the previous one) | `symbol`, `reportDate`, `report`, `source` |
+| `simperator_update_stock_report` | Review | Update / check in / archive a stock report | `id`, `currentState`, `checkin`, `appendText`, `status` |
+| `simperator_save_stock_research` | Research | Save qualitative research (one per symbol) | `symbol`, `research`, `riskLevel` |
+| `simperator_connect` | Setup | Connect with an assistant token pasted in the chat | `token` |
+
+### Commands (MCP prompts)
+
+After connecting, these show up as slash commands (Claude Code: `/mcp__simperator__review`, etc.) or in the client's prompts menu. Their text is served by Simperator, so they update without reinstalling. Lite and above.
+
+| Prompt | What it does | Argument |
+|---|---|---|
+| `review` | Daily review following the user's own trading guide (helps build one first if missing); writes daily / stock reports | empty = full review; symbols = only those |
+| `live` | Quick intraday look; `buy` gives an entry judgement, `close` an exit judgement; writes nothing | `SYMBOL [buy\|close]` or empty |
+| `research` | Web research on a company, saved as stock research | `SYMBOL [update]` |
+| `log` | Log a buy/sell disagreement, review due ones, or look up past ones | `log` / `check` / `SYMBOL` |
 
 Screener tools require Plus or above. Plus: `debug` group only, max 5 screeners, manual plans, 1 run/min and 20/day; backtest 2/min and 100/day. Pro: `debug` / `product` groups, max 30 screeners, max 3 daily/weekly plans, 20 runs/day; backtest 2/min, unlimited per day.
 
@@ -64,7 +84,7 @@ Screener tools require Plus or above. Plus: `debug` group only, max 5 screeners,
 
 ### 1. Configuration
 
-You can configure credentials either via environment variables or the CLI configuration command.
+No token is needed to install. Without one, the server exposes only `simperator_about` (how to sign up and get a token) and `simperator_connect`; paste your assistant token in the chat and the AI connects and saves it to `~/.simperator/config.json`. You can also configure it up front:
 
 #### Option A: CLI Configuration (Recommended)
 Run the config command to save your token locally in `~/.simperator/config.json`:
@@ -140,7 +160,7 @@ Testing connection to: https://server2.simperator.com/api
 
 ## Security & Safety Boundaries
 
-- **Zero-Token Leakage**: The assistant token is stored locally on your machine and never passed into LLM prompt contexts. The AI only sees tool definitions and tool outputs.
+- **Token Storage**: The assistant token is stored locally (`~/.simperator/config.json` or env). If you connect by pasting it in the chat, it appears in that conversation — revoke and recreate it on simperator.com/user anytime.
 - **Financial Safety**: `simperator-mcp` operates in a safe assistant tier (reading market data, viewing personal watchlists/portfolios, and submitting support tickets). It **never executes live monetary transactions or auto-settlement**.
 - **Cross-Platform**: Built on standard Node.js (ES2022) with `@modelcontextprotocol/sdk`.
 

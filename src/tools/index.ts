@@ -1,6 +1,8 @@
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { SimperatorClient } from '../client.js';
 
+
+const MARKET = { type: 'string', enum: ['US', 'CN'], description: 'Market, default US.' };
 export const TOOLS: Tool[] = [
   {
     name: 'simperator_get_stock_quote',
@@ -388,9 +390,121 @@ export const TOOLS: Tool[] = [
   },
   ...SCREENER_TOOLS(),
   ...JOURNAL_TOOLS(),
+  ...REVIEW_TOOLS(),
 ];
 
-const MARKET = { type: 'string', enum: ['US', 'CN'], description: 'Market, default US.' };
+/**
+ * Daily review tools (lite and above): price bars, the user's own trading guide,
+ * and writing daily / stock reports and stock research. Used by the review / live / research prompts.
+ */
+function REVIEW_TOOLS(): Tool[] {
+  return [
+    {
+      name: 'simperator_get_bars',
+      description:
+        'OHLCV price bars for one symbol, oldest first, as [date, open, high, low, close, volume] rows. During US market hours the last daily bar is live (about 15 min delayed). Read 1-3 months of bars before judging structure.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          symbol: { type: 'string', description: 'Ticker, e.g. AAPL.' },
+          market: MARKET,
+          resolution: { type: 'string', enum: ['D', 'W', 'M'], description: 'Daily / weekly / monthly, default D.' },
+          count: { type: 'number', description: 'Number of bars, default 120, max 500.' },
+        },
+        required: ['symbol'],
+      },
+    },
+    {
+      name: 'simperator_get_guide',
+      description: "The user's own active trading guide (rules the daily review follows). Empty if the user has none yet.",
+      inputSchema: { type: 'object', properties: { market: MARKET } },
+    },
+    {
+      name: 'simperator_save_guide',
+      description: 'Save a new version of the user\'s trading guide and make it active (older versions stay in history). Confirm the content with the user first.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          market: MARKET,
+          version: { type: 'string', description: 'e.g. v1, v2.' },
+          content: { type: 'string', description: 'Full guide in Markdown.' },
+          comment: { type: 'string', description: 'What changed in this version.' },
+        },
+        required: ['version', 'content'],
+      },
+    },
+    {
+      name: 'simperator_save_daily_report',
+      description: "Create / overwrite today's daily review report (same portfolio + date is overwritten). Call after each step with the full draft so far.",
+      inputSchema: {
+        type: 'object',
+        properties: {
+          market: MARKET,
+          portfolioId: { type: 'string' },
+          reportDate: { type: 'string', description: 'YYYY-MM-DD' },
+          reportContent: { type: 'string', description: 'Markdown body.' },
+          stepProgress: { type: 'string', description: 'Which step the review has reached.' },
+          totalAssets: { type: 'number' },
+          positionCount: { type: 'number' },
+          positionRatio: { type: 'number', description: 'Invested value / total assets, 0-1.' },
+          watchSymbols: { type: 'string', description: 'Symbols to watch, comma separated.' },
+        },
+        required: ['portfolioId', 'reportDate', 'reportContent', 'stepProgress', 'totalAssets', 'positionCount', 'positionRatio'],
+      },
+    },
+    {
+      name: 'simperator_list_active_stock_reports',
+      description: 'Stocks currently under management: all active stock reports of a market (without body; use simperator_get_stock_report for the body).',
+      inputSchema: { type: 'object', properties: { market: MARKET } },
+    },
+    {
+      name: 'simperator_save_stock_report',
+      description: 'Create a new stock report (the previous active report of that symbol is archived automatically).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          market: MARKET,
+          symbol: { type: 'string' },
+          reportDate: { type: 'string', description: 'YYYY-MM-DD' },
+          report: { type: 'string', description: 'Markdown body: structure, trigger, invalidation / stop, position.' },
+          source: { type: 'string', enum: ['holding', 'watchlist', 'screener', 'manual'] },
+        },
+        required: ['symbol', 'reportDate', 'report', 'source'],
+      },
+    },
+    {
+      name: 'simperator_update_stock_report',
+      description:
+        'Update a stock report by id: currentState = the judgement changed materially; checkin = reviewed today, no change; appendText = add a log line; status = 1 archives it.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          currentState: { type: 'string' },
+          checkin: { type: 'boolean' },
+          appendText: { type: 'string' },
+          status: { type: 'number', enum: [0, 1] },
+        },
+        required: ['id'],
+      },
+    },
+    {
+      name: 'simperator_save_stock_research',
+      description: 'Save qualitative research for a stock (one per symbol, overwrites).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          market: MARKET,
+          symbol: { type: 'string' },
+          research: { type: 'string', description: 'Full research in Markdown.' },
+          riskLevel: { type: 'string', enum: ['excellent', 'good', 'neutral', 'risky', 'extreme'] },
+        },
+        required: ['symbol', 'research', 'riskLevel'],
+      },
+    },
+  ];
+}
+
 
 /**
  * Trading journal tools (lite and above): watch-pool scores, strategy cases (trade ledger),
@@ -707,7 +821,7 @@ export async function handleToolCall(
 
       case 'simperator_get_daily_report': {
         const limit = Math.min(Math.max(Number(args.limit) || 1, 1), 10);
-        const data = await client.getDailyReports(1, limit);
+        const data = await client.getDailyReports(limit);
         return {
           content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
         };
@@ -715,7 +829,7 @@ export async function handleToolCall(
 
       case 'simperator_get_stock_report': {
         const symbol = String(args.symbol || '').toUpperCase().trim();
-        const data = await client.getStockReport(symbol);
+        const data = await client.getStockReport(symbol, args.market);
         return {
           content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
         };
@@ -723,7 +837,7 @@ export async function handleToolCall(
 
       case 'simperator_get_stock_research': {
         const symbol = String(args.symbol || '').toUpperCase().trim();
-        const data = await client.getStockResearch(symbol);
+        const data = await client.getStockResearch(symbol, args.market);
         return {
           content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
         };
@@ -1059,6 +1173,41 @@ export async function handleToolCall(
 
       case 'simperator_get_plan_results':
         return json('Plan results:', await client.getPlanResults(String(args.planId)));
+
+      case 'simperator_get_bars': {
+        const symbol = String(args.symbol || '').toUpperCase().trim();
+        const count = Math.min(Math.max(Number(args.count) || 120, 1), 500);
+        return json('Bars:', await client.getBars(symbol, args.market, args.resolution || 'D', count));
+      }
+
+      case 'simperator_get_guide':
+        return json('Trading guide:', (await client.getGuide(mkt(args))) ?? 'No guide yet.');
+
+      case 'simperator_save_guide':
+        return json('Guide saved:', await client.saveGuide({ ...args, market: mkt(args) }));
+
+      case 'simperator_save_daily_report':
+        return json('Daily report saved:', await client.saveDailyReport({ ...args, market: mkt(args) }));
+
+      case 'simperator_list_active_stock_reports':
+        return json('Active stock reports:', await client.listActiveStockReports(mkt(args)));
+
+      case 'simperator_save_stock_report':
+        return json(
+          'Stock report saved:',
+          await client.saveStockReport({ ...args, market: mkt(args), symbol: String(args.symbol).toUpperCase().trim() })
+        );
+
+      case 'simperator_update_stock_report': {
+        const { id, ...body } = args;
+        return json('Stock report updated:', await client.updateStockReport(String(id), body));
+      }
+
+      case 'simperator_save_stock_research':
+        return json(
+          'Research saved:',
+          await client.saveStockResearch({ ...args, market: mkt(args), symbol: String(args.symbol).toUpperCase().trim() })
+        );
 
       default:
         throw new Error(`Unknown tool: ${name}`);

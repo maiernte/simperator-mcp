@@ -25,6 +25,14 @@ export class SimperatorClient {
     return this.config.apiUrl;
   }
 
+  get hasCredentials(): boolean {
+    return !!(this.token || (this.config.username && this.config.password));
+  }
+
+  setToken(token: string): void {
+    this.token = token;
+  }
+
   /**
    * Helper to detect market from symbol if not explicitly provided
    */
@@ -146,16 +154,66 @@ export class SimperatorClient {
   }
 
   // --- Daily Review & Reports ---
-  async getDailyReports(page = 1, limit = 5): Promise<any> {
-    return this.request(`/daily-review/daily?page=${page}&limit=${limit}`);
+  /** 列表接口不带正文：取最新 limit 条再逐条取全文 */
+  async getDailyReports(limit = 1): Promise<any> {
+    const list: any[] = await this.request('/daily-review/daily');
+    return Promise.all(list.slice(0, limit).map((r) => this.request(`/daily-review/daily/detail/${r.id}`)));
   }
 
-  async getStockReport(symbol: string): Promise<any> {
-    return this.request(`/daily-review/stock/current?symbol=${encodeURIComponent(symbol)}`);
+  async getStockReport(symbol: string, market?: 'US' | 'CN'): Promise<any> {
+    const m = market || this.detectMarket(symbol);
+    return this.request(`/daily-review/stock/current?market=${m}&symbol=${encodeURIComponent(symbol)}`);
   }
 
-  async getStockResearch(symbol: string): Promise<any> {
-    return this.request(`/daily-review/research?symbol=${encodeURIComponent(symbol)}`);
+  async getStockResearch(symbol: string, market?: 'US' | 'CN'): Promise<any> {
+    const m = market || this.detectMarket(symbol);
+    return this.request(`/daily-review/research?market=${m}&symbol=${encodeURIComponent(symbol)}`);
+  }
+
+  /** K 线：UDF 数组转成 [date, o, h, l, c, v] 行，省 token */
+  async getBars(symbol: string, market?: 'US' | 'CN', resolution = 'D', count = 120): Promise<any> {
+    const m = market || this.detectMarket(symbol);
+    const daysPerBar = resolution === 'W' ? 7 : resolution === 'M' ? 31 : 1.5;
+    const to = Math.floor(Date.now() / 1000) + 86400;
+    const from = to - Math.ceil(count * daysPerBar + 10) * 86400;
+    const d: any = await this.request(
+      `/chart/udf/history?symbol=${encodeURIComponent(symbol)}&market=${m}&resolution=${resolution}&from=${from}&to=${to}`
+    );
+    const t: number[] = d?.t ?? [];
+    const rows = t.map((ts, i) => [new Date(ts * 1000).toISOString().slice(0, 10), d.o[i], d.h[i], d.l[i], d.c[i], d.v[i]]);
+    return { symbol, market: m, resolution, columns: ['date', 'open', 'high', 'low', 'close', 'volume'], bars: rows.slice(-count) };
+  }
+
+  async getGuide(market = 'US'): Promise<any> {
+    return this.request(`/daily-review/guide?market=${market}`);
+  }
+
+  async saveGuide(body: Record<string, unknown>): Promise<any> {
+    return this.request('/daily-review/guide', { method: 'POST', body: JSON.stringify(body) });
+  }
+
+  async saveDailyReport(body: Record<string, unknown>): Promise<any> {
+    return this.request('/daily-review/daily', { method: 'PUT', body: JSON.stringify(body) });
+  }
+
+  async listActiveStockReports(market = 'US'): Promise<any> {
+    return this.request(`/daily-review/stock/active?market=${market}`);
+  }
+
+  async saveStockReport(body: Record<string, unknown>): Promise<any> {
+    return this.request('/daily-review/stock', { method: 'POST', body: JSON.stringify(body) });
+  }
+
+  async updateStockReport(id: string, body: Record<string, unknown>): Promise<any> {
+    return this.request(`/daily-review/stock/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(body) });
+  }
+
+  async saveStockResearch(body: Record<string, unknown>): Promise<any> {
+    return this.request('/daily-review/research', { method: 'POST', body: JSON.stringify(body) });
+  }
+
+  async getPrompts(): Promise<{ welcome: string; prompts: Array<{ name: string; title: string; description: string; args: string; content: string }> }> {
+    return this.request('/assistant/prompts');
   }
 
   // --- Watchlists ---
