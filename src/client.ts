@@ -354,6 +354,88 @@ export class SimperatorClient {
     return this.request('/screener/dsl-docs');
   }
 
+  // --- Stock score cards (watch pool) ---
+  async listScoreRules(market?: string): Promise<any> {
+    return this.request(`/stock-score/rules${market ? `?market=${encodeURIComponent(market)}` : ''}`);
+  }
+
+  async listScoreCards(query: { market: string; archived?: string; sortBy?: string; sortOrder?: string; keyword?: string }): Promise<any> {
+    const params = new URLSearchParams(Object.entries(query).filter(([, v]) => v !== undefined) as [string, string][]);
+    return this.request(`/stock-score/cards?${params}`);
+  }
+
+  async getScoreCard(market: string, symbol: string): Promise<any> {
+    return this.request(`/stock-score/cards/${encodeURIComponent(market)}/${encodeURIComponent(symbol)}`);
+  }
+
+  async saveScoreCard(body: Record<string, unknown>): Promise<any> {
+    return this.request('/stock-score/cards', { method: 'POST', body: JSON.stringify(body) });
+  }
+
+  async archiveScoreCard(id: string): Promise<any> {
+    return this.request(`/stock-score/cards/${encodeURIComponent(id)}/archive`, { method: 'POST' });
+  }
+
+  // --- Strategy cases (trade ledger) ---
+  async listStrategies(market: string): Promise<any> {
+    return this.request(`/strategy/strategies?market=${encodeURIComponent(market)}`);
+  }
+
+  async listStrategyCases(market: string, strategyId?: string): Promise<any[]> {
+    const qs = new URLSearchParams({ market, ...(strategyId ? { strategyId } : {}) });
+    return this.request(`/strategy/cases?${qs}`);
+  }
+
+  async getCasesBySymbol(market: string, symbol: string): Promise<any> {
+    return this.request(`/strategy/cases-by-symbol?market=${encodeURIComponent(market)}&symbol=${encodeURIComponent(symbol)}`);
+  }
+
+  /**
+   * Server overwrites every field on update (missing ones reset to defaults), and the stored case
+   * comes back with nested `strategy` that takes precedence over flat fields — so merge flat edits
+   * into the stored case before posting.
+   */
+  async saveStrategyCase(input: Record<string, any>): Promise<any> {
+    const defined = Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined));
+    let body: any = defined;
+    if (input.id) {
+      const current = (await this.listStrategyCases(input.market)).find((c) => c.id === input.id);
+      if (!current) throw new Error(`Strategy case ${input.id} not found in market ${input.market}`);
+      const { strategyName, strategySubstrategy, strategyPattern, ...rest } = defined;
+      body = {
+        ...current,
+        ...rest,
+        strategy: {
+          ...current.strategy,
+          ...(strategyName !== undefined ? { name: strategyName } : {}),
+          ...(strategySubstrategy !== undefined ? { substrategy: strategySubstrategy } : {}),
+          ...(strategyPattern !== undefined ? { pattern: strategyPattern } : {}),
+        },
+      };
+    } else if (!Array.isArray(input.positions) || !input.positions.some((p: any) => p?.position === 'open')) {
+      throw new Error('A new case needs at least one position with position="open".');
+    }
+    return this.request('/strategy/cases', { method: 'POST', body: JSON.stringify(body) });
+  }
+
+  async getStrategyStats(market: string): Promise<any> {
+    return this.request(`/strategy/stats?market=${encodeURIComponent(market)}`);
+  }
+
+  // --- Stock arguments (user vs AI disagreements) ---
+  async listStockArguments(market: string, symbol?: string): Promise<any> {
+    const qs = new URLSearchParams({ market, ...(symbol ? { symbol } : {}) });
+    return this.request(`/stock-argument?${qs}`);
+  }
+
+  async saveStockArgument(body: Record<string, unknown>): Promise<any> {
+    return this.request('/stock-argument', { method: 'POST', body: JSON.stringify(body) });
+  }
+
+  async reviewStockArguments(market: string): Promise<any> {
+    return this.request(`/stock-argument/review?market=${encodeURIComponent(market)}`, { method: 'POST' });
+  }
+
   /** Single-stock backtest (plus+): evaluate a DSL script on every past trading day of one symbol. */
   async backtest(params: { symbol: string; script: string; market?: string; days?: number }): Promise<any> {
     return this.request('/screener/backtest', { method: 'POST', body: JSON.stringify(params) });

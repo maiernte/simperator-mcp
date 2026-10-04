@@ -27,6 +27,18 @@ Allow your local AI assistant (Claude Desktop, Cursor, Gemini CLI, Cline, etc.) 
 | `simperator_get_watch_notes` | Notes | Get user's trading notes, observation comments, and score evaluations | `market`, `symbol` |
 | `simperator_save_watch_note` | Notes | Save or update personal market observation notes for a symbol | `market`, `symbol`, `content` |
 | `simperator_delete_watch_note` | Notes | Delete a personal observation note | `id` |
+| `simperator_list_score_rules` | Journal | The user's score rules (read before scoring) | `market` |
+| `simperator_list_score_cards` | Journal | Watch pool: scored stocks, total / core score, trigger & invalidation | `market`, `archived`, `sortBy`, `sortOrder`, `keyword` |
+| `simperator_get_score_card` | Journal | One stock's per-rule scores | `market`, `symbol` |
+| `simperator_save_score_card` | Journal | Score a stock into the watch pool (overwrites the card) | `market`, `symbol`, `items`, `triggerNote`, `invalidNote`, `comment` |
+| `simperator_archive_score_card` | Journal | Archive a score card | `id` |
+| `simperator_list_strategies` | Journal | Strategy definitions (conditions, substrategies) | `market` |
+| `simperator_list_strategy_cases` | Journal | Strategy cases, all or by symbol | `market`, `symbol`, `strategyId` |
+| `simperator_save_strategy_case` | Journal | Create / update a case (trade / simulate / collect) | `id`, `symbol`, `category`, `strategyId`, `strategySubstrategy`, `positions`, … |
+| `simperator_get_strategy_stats` | Journal | Win rate per strategy / substrategy | `market` |
+| `simperator_list_stock_arguments` | Journal | Discussion log of user-vs-AI disagreements with 10/30/60-day reviews | `market`, `symbol` |
+| `simperator_save_stock_argument` | Journal | Log a disagreement | `symbol`, `date`, `decision`, `advocate`, `reasonFor`, `reasonAgainst`, `category` |
+| `simperator_review_stock_arguments` | Journal | Run the due 10/30/60-day review (10/day) | `market` |
 | `simperator_list_tickets` | Support | Check status and history of user's customer support tickets | `openOnly` |
 | `simperator_create_ticket` | Support | Open a new support ticket or bug report directly from the AI chat | `type`, `title`, `description`, `to` |
 | `simperator_reply_ticket` | Support | Post a reply or additional comment to an existing ticket | `ticketId`, `text` |

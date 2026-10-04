@@ -145,7 +145,7 @@ export const TOOLS: Tool[] = [
   {
     name: 'simperator_create_ticket',
     description:
-      'Create and submit a new customer support ticket or bug report to Simperator support team.',
+      'Create a support ticket for the user (with their consent). Use when the manual cannot answer, or for account problems, tier not updated after payment, errors, or wrong data. Check simperator_list_tickets first and reply to an existing open ticket instead of duplicating; put the problem, facts you already checked, and repro steps in the description.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -184,7 +184,7 @@ export const TOOLS: Tool[] = [
   {
     name: 'simperator_get_qa_docs',
     description:
-      'Simperator platform manual (subscription tiers & prices, notifications, tickets, MCP setup, building strategies & single-stock backtest, etc.), in three levels so you never load everything at once: no args → table of contents (doc id + section headings, no body); topic → only the matching sections; id → one full document. Search first, fetch a full document only when the sections are not enough.',
+      'Simperator platform manual (subscription tiers & prices, notifications, tickets, MCP setup, building strategies & single-stock backtest, etc.), in three levels so you never load everything at once: no args → table of contents (doc id + section headings, no body); topic → only the matching sections; id → one full document. Search first, fetch a full document only when the sections are not enough. Use this to answer any "how does the site work / what is it / how much" question (it replaces the in-site AI Q&A): answer only from these docs with concrete steps and page paths; if they do not cover it, say so — never invent pages, buttons or rules — and offer to file a ticket. For questions about the user\'s own account or data, check it with the other tools first.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -387,7 +387,164 @@ export const TOOLS: Tool[] = [
     },
   },
   ...SCREENER_TOOLS(),
+  ...JOURNAL_TOOLS(),
 ];
+
+const MARKET = { type: 'string', enum: ['US', 'CN'], description: 'Market, default US.' };
+
+/**
+ * Trading journal tools (lite and above): watch-pool scores, strategy cases (trade ledger),
+ * and stock arguments (disagreements between the user and the AI, auto-reviewed at 10/30/60 trading days).
+ */
+function JOURNAL_TOOLS(): Tool[] {
+  return [
+    {
+      name: 'simperator_list_score_rules',
+      description: "List the user's score rules (id, code, name, max score, core flag, weight, enabled). Read before scoring: item ruleIds come from here.",
+      inputSchema: { type: 'object', properties: { market: MARKET } },
+    },
+    {
+      name: 'simperator_list_score_cards',
+      description: "List the user's watch pool (scored stocks with total / core score, trigger and invalidation conditions). Core score high = closest to actionable.",
+      inputSchema: {
+        type: 'object',
+        properties: {
+          market: MARKET,
+          archived: { type: 'string', enum: ['true', 'false'], description: 'Archived cards only when "true".' },
+          sortBy: { type: 'string', description: 'e.g. totalScore, coreScore, updatedAt.' },
+          sortOrder: { type: 'string', enum: ['asc', 'desc'] },
+          keyword: { type: 'string', description: 'Search symbol or trigger / invalidation text.' },
+        },
+      },
+    },
+    {
+      name: 'simperator_get_score_card',
+      description: 'Get one stock\'s score card with per-rule scores.',
+      inputSchema: { type: 'object', properties: { market: MARKET, symbol: { type: 'string' } }, required: ['symbol'] },
+    },
+    {
+      name: 'simperator_save_score_card',
+      description:
+        'Score a stock into the watch pool. One card per market+symbol: saving again overwrites it and replaces all items. Write trigger / invalidation conditions as checkable prices or events (e.g. "close above 52.3 on volume", "close below 47").',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          market: MARKET,
+          symbol: { type: 'string' },
+          items: {
+            type: 'array',
+            description: 'Scores per rule; score must not exceed the rule max.',
+            items: {
+              type: 'object',
+              properties: { ruleId: { type: 'string' }, score: { type: 'number' }, note: { type: 'string' } },
+              required: ['ruleId', 'score'],
+            },
+          },
+          triggerNote: { type: 'string', description: 'When it becomes actionable.' },
+          invalidNote: { type: 'string', description: 'When this watch is void.' },
+          comment: { type: 'string' },
+          status: { type: 'string' },
+          category: { type: 'string' },
+        },
+        required: ['symbol', 'items'],
+      },
+    },
+    {
+      name: 'simperator_archive_score_card',
+      description: 'Archive a score card (stop watching). Restorable on the web page.',
+      inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+    },
+    {
+      name: 'simperator_list_strategies',
+      description: "List the user's strategy definitions (essential / optimal / restrict conditions, substrategies, patterns). Read before creating a case: strategyId and substrategy keys come from here.",
+      inputSchema: { type: 'object', properties: { market: MARKET } },
+    },
+    {
+      name: 'simperator_list_strategy_cases',
+      description: 'List strategy cases (type, strategy, open/close positions, P&L, verdict, review). Pass symbol to get one stock\'s cases — always check before creating: one case per stock while the position is open; add/reduce goes into the existing case\'s positions.',
+      inputSchema: {
+        type: 'object',
+        properties: { market: MARKET, symbol: { type: 'string' }, strategyId: { type: 'string' } },
+      },
+    },
+    {
+      name: 'simperator_save_strategy_case',
+      description:
+        'Create (omit id) or update (pass id; only the fields you pass change) a strategy case. category: "trade" = real fill (ASK the user for the real price and shares, never guess), "simulate" = at decision time the setup fully qualified but did not fill (low conviction / no free slot / broker rejected; same entry standard as real money), "collect" = after-the-fact sample of a nice pattern. strategyId and strategySubstrategy are required. A new case needs at least one position with position "open". Never invent a stop loss: take it from the user and check it against the chart.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          market: MARKET,
+          symbol: { type: 'string' },
+          category: { type: 'string', enum: ['trade', 'simulate', 'collect'] },
+          strategyId: { type: 'string' },
+          strategyName: { type: 'string' },
+          strategySubstrategy: { type: 'string', description: 'Substrategy key from the strategy definition.' },
+          strategyPattern: { type: 'string' },
+          advertTime: { type: 'string', description: 'Decision / watch start date (ISO).' },
+          period: { type: 'string', enum: ['D', 'W', 'H'] },
+          positions: {
+            type: 'array',
+            description: 'Full positions array (on update, pass the whole array including existing entries).',
+            items: {
+              type: 'object',
+              properties: {
+                action: { type: 'string', enum: ['buy', 'sell'] },
+                position: { type: 'string', enum: ['open', 'close'], description: 'open = open / add, close = reduce / close.' },
+                time: { type: 'string', description: 'ISO date.' },
+                price: { type: 'number' },
+                amount: { type: 'number' },
+                stoploss: { type: 'number' },
+              },
+              required: ['action', 'position', 'time', 'price', 'amount'],
+            },
+          },
+          closed: { type: 'boolean' },
+          success: { type: 'number', description: '1 success, -1 failure, 0 pending, 2 classic.' },
+          comment: { type: 'string', description: 'One-line review: what was right / wrong.' },
+        },
+        required: ['symbol'],
+      },
+    },
+    {
+      name: 'simperator_get_strategy_stats',
+      description: 'Case statistics per strategy / substrategy (count, wins, losses, win rate). Interpret trade, simulate and collect separately.',
+      inputSchema: { type: 'object', properties: { market: MARKET } },
+    },
+    {
+      name: 'simperator_list_stock_arguments',
+      description: 'List the discussion log: past disagreements between the user and the AI, with 10/30/60-day review results and second-chance flags. Use it for "did we discuss X before / who was right".',
+      inputSchema: { type: 'object', properties: { market: MARKET, symbol: { type: 'string' } } },
+    },
+    {
+      name: 'simperator_save_stock_argument',
+      description:
+        'Log a disagreement (omit id to create, pass id to update). ONLY when the user and the AI held opposite views — if you cannot name the opposing side, do not log it; a user overruling their own idea is a watch note instead. priceAtDecision is filled from that day\'s close when omitted.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          market: MARKET,
+          symbol: { type: 'string' },
+          date: { type: 'string', description: 'YYYY-MM-DD.' },
+          decision: { type: 'string', enum: ['buy', 'hold_cash', 'sell', 'hold_position'], description: 'What was actually done.' },
+          advocate: { type: 'string', enum: ['user', 'ai'], description: 'Who argued FOR acting.' },
+          reasonFor: { type: 'string' },
+          reasonAgainst: { type: 'string' },
+          category: { type: 'string', enum: ['technical', 'position', 'other'] },
+          priceAtDecision: { type: 'number' },
+        },
+        required: ['symbol', 'date', 'decision', 'advocate', 'reasonFor', 'reasonAgainst', 'category'],
+      },
+    },
+    {
+      name: 'simperator_review_stock_arguments',
+      description: 'Run the due review: mechanically writes 10/30/60-trading-day up/down/flat results and second-chance flags. Limited to 10 per day.',
+      inputSchema: { type: 'object', properties: { market: MARKET } },
+    },
+  ];
+}
 
 /**
  * Screener tools. Limits by subscription tier (enforced by the server):
@@ -504,6 +661,8 @@ function SCREENER_TOOLS(): Tool[] {
 const json = (title: string, data: unknown) => ({
   content: [{ type: 'text' as const, text: `${title}\n${JSON.stringify(data, null, 2)}` }],
 });
+
+const mkt = (args: any): string => (args?.market === 'CN' ? 'CN' : 'US');
 
 export async function handleToolCall(
   client: SimperatorClient,
@@ -772,6 +931,72 @@ export async function handleToolCall(
         const docs = await client.getDslDocs();
         return { content: [{ type: 'text', text: docs.markdown }] };
       }
+
+      case 'simperator_list_score_rules':
+        return json('Score rules:', await client.listScoreRules(mkt(args)));
+
+      case 'simperator_list_score_cards':
+        return json(
+          'Score cards:',
+          await client.listScoreCards({
+            market: mkt(args),
+            archived: args.archived,
+            sortBy: args.sortBy,
+            sortOrder: args.sortOrder,
+            keyword: args.keyword,
+          })
+        );
+
+      case 'simperator_get_score_card':
+        return json('Score card:', await client.getScoreCard(mkt(args), String(args.symbol).toUpperCase()));
+
+      case 'simperator_save_score_card':
+        return json(
+          'Score card saved:',
+          await client.saveScoreCard({ ...args, market: mkt(args), symbol: String(args.symbol).toUpperCase() })
+        );
+
+      case 'simperator_archive_score_card':
+        return json('Archived:', await client.archiveScoreCard(String(args.id)));
+
+      case 'simperator_list_strategies':
+        return json('Strategies:', await client.listStrategies(mkt(args)));
+
+      case 'simperator_list_strategy_cases':
+        return json(
+          'Strategy cases:',
+          args.symbol
+            ? await client.getCasesBySymbol(mkt(args), String(args.symbol).toUpperCase())
+            : await client.listStrategyCases(mkt(args), args.strategyId)
+        );
+
+      case 'simperator_save_strategy_case':
+        return json(
+          'Strategy case saved:',
+          await client.saveStrategyCase({
+            ...args,
+            market: mkt(args),
+            symbol: args.symbol ? String(args.symbol).toUpperCase() : undefined,
+          })
+        );
+
+      case 'simperator_get_strategy_stats':
+        return json('Strategy stats:', await client.getStrategyStats(mkt(args)));
+
+      case 'simperator_list_stock_arguments':
+        return json(
+          'Stock arguments:',
+          await client.listStockArguments(mkt(args), args.symbol ? String(args.symbol).toUpperCase() : undefined)
+        );
+
+      case 'simperator_save_stock_argument':
+        return json(
+          'Stock argument saved:',
+          await client.saveStockArgument({ ...args, market: mkt(args), symbol: String(args.symbol).toUpperCase() })
+        );
+
+      case 'simperator_review_stock_arguments':
+        return json('Review result:', await client.reviewStockArguments(mkt(args)));
 
       case 'simperator_backtest':
         return json(
